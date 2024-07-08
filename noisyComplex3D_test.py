@@ -43,12 +43,15 @@ n_iter          =   n_admm * n_scp
 show_prob1      =   False
 show_prob2      =   False
 use_threshold   =   False
-rho             =   0.75
-iam_noise       =   0.02
+rho             =   1.25
+iam_noise       =   0.05
 pos_noise       =   0.02
 warm_start      =   True
 lam_lim         =   1
 mu_lim          =   1
+
+# Show
+show_plots = False
 
 ###     Initializations     - Agents
 # 20 agents making up a complex 3d configuration
@@ -380,7 +383,8 @@ print("=========================================================================
 ###     Plotting            - Static Position Estimates
 print("\nPlotting")
 print()
-# plt.rcParams['text.usetex'] = True
+plt.rcParams.update({'text.usetex': True,
+                        'font.family': 'Helvetica'})
 
 # Create position estimate over time data
 p_hist = []
@@ -393,10 +397,10 @@ for id in range(num_agents):
 # Compare position estimates before and after reconstruction
 fig1 = plt.figure(dpi=300)
 ax1 = fig1.add_subplot(projection='3d')
-ax1.set_title("Agent Position Estimates")
-ax1.set_xlabel("x")
-ax1.set_ylabel("y")
-ax1.set_zlabel("z")
+ax1.set_title(r"Agent Position Estimates")
+ax1.set_xlabel(r"$x$")
+ax1.set_ylabel(r"$y$")
+ax1.set_zlabel(r"$z$")
 
 for agent_id, agent in enumerate(agents): # Draw points
     ax1.scatter(p_hist[agent_id][0, -1], p_hist[agent_id][1, -1], p_hist[agent_id][2, -1], marker='*', c='c', label="After", s=100)
@@ -419,12 +423,14 @@ plt.grid(True)
 
 
 ###     Plotting            - Error Convergence
+
 # Show convergence of estimated error vector to true error vector over time
 x_norm_history = [x_norm_history[i].flatten() for i in range(num_agents)]
-fig_err = plt.figure(dpi=300, figsize=(6,4))
+fig_err = plt.figure(dpi=500, figsize=(9,4))
 ax_err = fig_err.add_subplot()
 lines = [None] * num_agents
 
+# Plot
 for agent_id, agent in enumerate(agents):
     label_str = f"Agent {agent_id}"
     plt_color = 'slategray'
@@ -432,35 +438,38 @@ for agent_id, agent in enumerate(agents):
         plt_color = 'orangered'
     lines[agent_id] = ax_err.plot(total_iterations, x_norm_history[agent_id], c=plt_color, label=label_str)[0]
 
-plt.title('Convergence of Error Vector')
-plt.xlabel('ADMM Iterations')
-plt.ylabel('||x*[i] - x[i]||')
-plt.ylim((0, 2.0))
-plt.xlim((0, n_scp*n_admm))
-plt.xticks(ticks=range(0, n_iter, n_admm))
-plt.yticks(ticks=np.arange(0, 2, 0.25))
-plt.legend([lines[1], lines[faulty_id[0]]], ["Nominal Agents", "Faulty Agents"])
-plt.grid(True)
+# ax_err.set_title(r'Error Vector Convergence ( $\rho = {}$ )'.format(rho))
+ax_err.set_xlabel(r'ADMM Iterations')
+ax_err.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \| $')
+ax_err.set_ylim((0, 1.25))
+ax_err.set_xlim((0, (n_iter - 1)))
+ax_err.set_xticks(ticks=np.arange(0, n_iter, n_admm))
+ax_err.set_yticks(ticks=np.arange(0, 1.25, 0.25))
+ax_err.legend([lines[1], lines[faulty_id[0]]], [r'$i \in$ Nominal Agents', r'$i \in$ Faulty Agents'])
+ax_err.grid(True)
 
 dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 fname_err = "fig/3D-NoisyComplex/err_conv_" + dt_string + ".svg"
-plt.savefig(fname_err, dpi=300)
+plt.savefig(fname_err, dpi=500)
 
 
 
 ###     Plotting            - Animation
 
 # Start figure
-fig2 = plt.figure(dpi=300)
+fig2 = plt.figure(dpi=500)
 ax2 = fig2.add_subplot(projection='3d')
-ax2.set_title("Agent Estimated Position")
-ax2.set_xlabel("x position")
-ax2.set_ylabel("y position")
-ax2.set_zlabel("z position")
+ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
+ax2.set_xlabel(r"$x$-position")
+ax2.set_ylabel(r"$y$-position")
+ax2.set_zlabel(r"$z$-position")
 scat_pos_est = [None] * num_agents # Position estimate during reconstruction
 scat_pos_hat = [None] * num_agents # Initial position estimate
 scat_pos_true = [None] * num_agents # True positions
 line_pos_est = [None] * len(edges) # Inter-agent communication
+ax2.set_xlim((0, 7))
+ax2.set_ylim((0, 7))
+ax2.set_zlim((0, 7))
 
 # Draw each agent's original estimated, current estimated, and true positions
 for agent_id, _ in enumerate(agents):
@@ -480,7 +489,7 @@ for i, edge in enumerate(edges):
     x = [p1[0], p2[0]]
     y = [p1[1], p2[1]]
     z = [p1[2], p2[2]]
-    line_pos_est[i] = ax2.plot(x, y, z, c='k', linewidth=1, alpha=0.5)[0]
+    line_pos_est[i] = ax2.plot(x, y, z, c='k', linewidth=1, alpha=0.25)[0]
 ax2.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
 ax2.grid(True)
 
@@ -559,4 +568,7 @@ ax_mu.grid(True)
 
 
 ###     Plotting            - Show Plots
-plt.show()
+if show_plots:
+    plt.show()
+else:
+    plt.close("all")

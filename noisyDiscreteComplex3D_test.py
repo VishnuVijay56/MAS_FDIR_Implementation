@@ -54,7 +54,13 @@ dual_var_check  =   False
 R_diff_check    =   True
 lam_thresh      =   1.5
 mu_thresh       =   5e-3
-R_diff_thresh   =   3.0
+R_diff_thresh   =   1
+
+# Show
+show_plots = True
+
+
+###     Assertions
 
 
 ###     Initializations     - Agents
@@ -190,16 +196,27 @@ def get_Jacobian_rank(R):
 
 # Returns the matrix norm of the difference between old and new R matrices
 def get_Jacobian_matrix_norm_diff(R_old, R_new):
+    
+    # Find R_norm_diff for each agent
+    R_norm_diff_arr = [0] * num_agents
 
-    old_matrix = R_old[0]
-    for row in R_old[1:]:
-        old_matrix = np.vstack((old_matrix, row))
+    for id, _ in enumerate(agents):
+        # Get Agent Edge List
+        this_edge_list = agents[id].get_edge_indices()
+        
+        # Construct 2D Array of Old Matrix
+        old_matrix = R_old[this_edge_list[0]]
+        for edge_ind in this_edge_list[1:]:
+            old_matrix = np.vstack((old_matrix, R_old[edge_ind]))
+        
+        # Construct 2D Array of New Matrix
+        new_matrix = R_new[this_edge_list[0]]
+        for edge_ind in this_edge_list[1:]:
+            new_matrix = np.vstack((new_matrix, R_new[edge_ind]))
 
-    new_matrix = R_new[0]
-    for row in R_new[1:]:
-        new_matrix = np.vstack((new_matrix, row))
+        R_norm_diff_arr[id] = np.linalg.norm(new_matrix - old_matrix)
 
-    return np.linalg.norm(new_matrix - old_matrix)
+    return R_norm_diff_arr
 
 
 
@@ -245,6 +262,7 @@ for agent_id, agent in enumerate(agents):
     agent.init_w(np.zeros((dim, 1)), agent.get_neighbors())
 
 
+
 ###     Initializations     - List Parameters
 print("\n~ ~ ~ ~ PARAMETERS ~ ~ ~ ~")
 print("rho:", rho)
@@ -254,15 +272,18 @@ for i, id in enumerate(faulty_id):
     print(f"\tID: {id}\t\t Vector: {fault_vec[i].flatten()}")
 
 
+
 ### Store stuff
 lam_norm_history = [np.zeros((len(agents[i].get_edge_indices()), n_iter)) for i in range(num_agents)]
 mu_norm_history = [np.zeros((len(agents[i].get_neighbors()), n_iter)) for i in range(num_agents)]
-R_norm_diff_history = np.zeros(n_scp)
-R_norm_diff = 0
+R_norm_diff_history = [np.zeros(n_scp) for i in range(num_agents)]
+R_norm_diff = [0] * num_agents
 sum_err_rmse = 0.0
 start_time = time()
 solver_err = False
 maximal_rank = dim*num_agents - comb(dim+1, 2)
+
+
 
 ###     Looping             - SCP Outer Loop
 print("\nStarting Loop")
@@ -298,14 +319,14 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
     R_new = get_Jacobian_matrix(p_hat_noise, x_star)
     if (outer_i > 0):
         R_norm_diff = get_Jacobian_matrix_norm_diff(R, R_new)
-        R_norm_diff_history[outer_i] = R_norm_diff
     R = R_new
 
     # Check norm difference between new and old R
-    if R_diff_check and (R_norm_diff >= R_diff_thresh):
+    if R_diff_check and (not warm_start):
         for agent_id, agent in enumerate(agents):
-            agent.init_lam(np.zeros((1, 1)), agent.get_edge_indices())
-            agent.init_mu(np.zeros((dim, 1)), agent.get_neighbors())
+            if (R_norm_diff[agent_id] >= R_diff_thresh):
+                agent.init_lam(np.zeros((1, 1)), agent.get_edge_indices())
+                agent.init_mu(np.zeros((dim, 1)), agent.get_neighbors())
 
     # Check if rank of R is maximal
     jac_rank = get_Jacobian_rank(R)
@@ -316,6 +337,7 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
     # Reset extra primal variables for inner loop
     for agent in agents:
         agent.init_w(np.zeros((dim, 1)), agent.get_neighbors())
+
 
 
     ###     Looping             - ADMM Inner Loop
@@ -439,7 +461,6 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
                     # print(f"RESET LAM: Agent {agent_id} at SCP {outer_i}")
                     reset_lam[agent_id] = True
 
-
             # Summation for d() constraint
             for i, nbr_id in enumerate(agent.get_neighbors()):
                 constr_d = agent.x_bar - agent.w[nbr_id]
@@ -480,9 +501,12 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
         
         # Update position and x_dev
         p_est[agent_id] = p_hat_noise[agent_id] + x_star[agent_id]
+
+        # Store Norm Difference in R for each agent
+        R_norm_diff_history[agent_id][outer_i] = R_norm_diff[agent_id]
     
     # Check if a reset flag was set
-    if dual_var_check:    
+    if dual_var_check and (not warm_start):    
         for agent_id, agent in enumerate(agents):
             if (reset_lam[agent_id] or reset_mu[agent_id]):
                 # print(f"RESET DUAL: Agent {agent_id} at SCP {outer_i}")
@@ -512,7 +536,8 @@ print(f"========================================================================
 ###     Plotting            - Static Position Estimates
 print("\nPlotting")
 print()
-# plt.rcParams['text.usetex'] = True
+plt.rcParams.update({'text.usetex': True,
+                        'font.family': 'Helvetica'})
 
 # Create position estimate over time data
 p_est_hist = []
@@ -553,7 +578,7 @@ for id in range(num_agents):
 ###     Plotting            - Error Convergence
 # Show convergence of estimated error vector to true error vector over time
 x_norm_history = [x_norm_history[i].flatten() for i in range(num_agents)]
-fig_err = plt.figure(dpi=300, figsize=(6,4))
+fig_err = plt.figure(dpi=500, figsize=(9,3))
 ax_err = fig_err.add_subplot()
 lines = [None] * num_agents
 for agent_id, agent in enumerate(agents):
@@ -563,34 +588,37 @@ for agent_id, agent in enumerate(agents):
         plt_color = 'orangered'
     lines[agent_id] = ax_err.plot(total_iterations, x_norm_history[agent_id], c=plt_color, label=label_str)[0]
 
-plt.title('Convergence of Error Vector')
-plt.xlabel('ADMM Iterations')
-plt.ylabel('||x*[i] - x[i]||')
-plt.ylim((0, 2.0))
-plt.xlim((0, (n_scp*n_admm - 1)))
-plt.xticks(ticks=range(0, n_iter, n_admm))
-plt.yticks(ticks=np.arange(0, 2, 0.25))
-plt.legend([lines[1], lines[faulty_id[0]]], ["Nominal Agents", "Faulty Agents"])
+# plt.title(r'Error Vector Convergence ( $\rho = {}$ )'.format(rho))
+plt.xlabel(r'{ADMM Iterations}')
+plt.ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \| $')
+plt.ylim((0, 1.25))
+plt.xlim((0, (n_iter - 1)))
+plt.xticks(ticks=np.arange(0, n_iter, n_admm))
+plt.yticks(ticks=np.arange(0, 1.25, 0.25))
+plt.legend([lines[1], lines[faulty_id[0]]], [r'$i \in$ Nominal Agents', r'$i \in$ Faulty Agents'])
 plt.grid(True)
 
 dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 fname_err = "fig/3D-NoisyDiscreteComplex/err_conv_" + dt_string + ".svg"
-plt.savefig(fname_err, dpi=300)
+plt.savefig(fname_err, dpi=500)
 
 
 ###     Plotting            - Animation
 
 # Start figure
-fig2 = plt.figure(dpi=300)
+fig2 = plt.figure(dpi=500)
 ax2 = fig2.add_subplot(projection='3d')
-ax2.set_title("Agent Estimated Position")
-ax2.set_xlabel("x position")
-ax2.set_ylabel("y position")
-ax2.set_zlabel("z position")
+ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
+ax2.set_xlabel(r"$x$-position")
+ax2.set_ylabel(r"$y$-position")
+ax2.set_zlabel(r"$z$-position")
 scat_pos_est = [None] * num_agents # Position estimate during reconstruction
 scat_pos_hat = [None] * num_agents # Initial position estimate
 scat_pos_true = [None] * num_agents # True positions
 line_pos_est = [None] * len(edges) # Inter-agent communication
+ax2.set_xlim((0, 7))
+ax2.set_ylim((0, 7))
+ax2.set_zlim((0, 7))
 
 # Draw each agent's original estimated, current estimated, and true positions
 for agent_id, _ in enumerate(agents):
@@ -645,7 +673,7 @@ def update_pos_plot(frame):
     return updated_ax
     
 # Call update function
-pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=150, blit=False, repeat=True)
+pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
 fname_ani = "fig/3D-NoisyDiscreteComplex/pos3D_ani_" + dt_string + ".gif"
 pos_ani.save(filename=fname_ani, writer="pillow")
 
@@ -700,9 +728,15 @@ fig_R_diff, ax_R_diff = plt.subplots(dpi=200)
 ax_R_diff.set_title("Norm Difference between old R and new R")
 ax_R_diff.set_xlabel("Outer Loop Iteration")
 ax_R_diff.set_ylabel("|| R_old - R_new ||")
-ax_R_diff.plot(np.arange(n_scp), R_norm_diff_history)
+for agent_id, _ in enumerate(agents):
+    ax_R_diff.plot(np.arange(n_scp), R_norm_diff_history[agent_id], label=f"Agent {agent_id}")
+ax_R_diff.set_xlim((0, (n_scp-1)))
+ax_R_diff.set_ylim((0, 3))
 ax_R_diff.grid(True)
 
 
 ###     Plotting            - Show Plots
-plt.show()
+if show_plots:
+    plt.show()
+else:
+    plt.close("all")
