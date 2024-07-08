@@ -2,7 +2,7 @@
 Project:    TII - MAS Fault Detection, Identification, and Reconfiguration
 Author:     Vishnu Vijay
 Description:
-            - Complex configuration from Shiraz's TAC paper with noise and discrete configuration changes
+            - Complex configuration from Shiraz's TAC paper with noise
             - Implementation of " Collaborative Fault-Identification &
               Reconstruction in Multi-Agent Systems" by Khan et al.
             - Algorithm uses inter-agent distances to reconstruct a sparse
@@ -33,10 +33,8 @@ from generic_agent import GenericAgent as Agent
 from iam_models import distance
 
 
-def main_func(rho, warm_start, trial_num, return_dict):
-    ###     Start
-    print(f"Starting ({rho}, {warm_start}, {trial_num})")
-
+def main_func(rho, iam_noise, trial_num, return_dict):
+    print(f"Starting ({rho}, {iam_noise}, {trial_num}) ...")
 
     ###     Initializations     - Scalars
     dim             =   3   # 2 or 3
@@ -48,15 +46,23 @@ def main_func(rho, warm_start, trial_num, return_dict):
     show_prob1      =   False
     show_prob2      =   False
     use_threshold   =   False
-    # rho             =   1.
-    iam_noise       =   0.04
+    # rho             =   1.0
+    # iam_noise       =   0.04
     pos_noise       =   0.02
-    # warm_start      =   True
-    lam_lim         =   1.5
-    mu_lim          =   5e-3
-    show_plots      =   False
-    save_ani        =   False
+    warm_start      =   True
+    lam_lim         =   1
+    mu_lim          =   1
+
+    # Output Settings
     show_prints     =   False
+    save_err        =   False
+    save_ani        =   False
+    noise_level     =   "other"
+
+    if iam_noise == 0.02:
+        noise_level = "low"
+    elif iam_noise == 0.05:
+        noise_level = "high"
 
     ###     Initializations     - Agents
     # 20 agents making up a complex 3d configuration
@@ -86,25 +92,22 @@ def main_func(rho, warm_start, trial_num, return_dict):
     # NOTE: may not work for some random cases
     # random case -> np.random.randint(low=0, high=num_agents, size=4)
     # tac paper case -> [0, 5, 7, 9, 10, 13]
-    faulty_id1 = [0, 5, 7]
-    faulty_id2 = [9, 10, 13]
-    faulty_id = faulty_id1 + faulty_id2
-
-    fault_vec1  =   [np.array([[0.275, 0.447, 0.130]]).T,
+    faulty_id = [0, 5, 7, 9, 10, 13]
+    err_scaling = 1
+    fault_vec   =   [np.array([[0.275, 0.447, 0.130]]).T,
                     np.array([[-0.849, 0.170, 0.888]]).T,
-                    np.array([[0.761, -0.408, 0.438]]).T]
-    fault_vec2  =   [np.array([[-0.640, 0.260, -0.941]]).T,
+                    np.array([[0.761, -0.408, 0.438]]).T,
+                    np.array([[-0.640, 0.260, -0.941]]).T,
                     np.array([[0.879, 0.425, -0.710]]).T,
                     np.array([[-0.534, -0.543, -0.588]]).T]
-    fault_vec   =   fault_vec1 + fault_vec2
-
     for index, agent_id in enumerate(faulty_id):
+        # fault_vec.append( np.random.uniform(low=-err_scaling, high=err_scaling, size=(dim, 1)) )
+        agents[agent_id].faulty = True
         agents[agent_id].error_vector = fault_vec[index][:,np.newaxis].reshape((dim, -1))
 
     x_true = []
     for id, agent in enumerate(agents):
-        x_true.append(0.0*agent.error_vector)
-        # x_true.append(agent.error_vector)
+        x_true.append(agent.error_vector)
 
 
     # Set Neighbors
@@ -183,30 +186,18 @@ def main_func(rho, warm_start, trial_num, return_dict):
 
 
     ###     Initializations     - Measurements and Positions
-
-    # Error
     x_star = [np.zeros((dim, 1)) for i in range(num_agents)]                    # Equivalent to last element in x_history (below)
     x_history = [np.zeros((dim, (n_iter))) for i in range(num_agents)]          # Value of x at each iteration of algorithm
     x_norm_history = [np.zeros((1, (n_iter))) for i in range(num_agents)]       # Norm of difference between x_history and x_true
-
-    # Position
     p_est = [agents[i].get_estimated_pos() for i in range(num_agents)]          # Will be updated as algorithm loops and err vector is reconstructed
-    p_hat = deepcopy(p_est)                                                     # Reported positions of agents
+    p_hat = deepcopy(p_est)                                                     # CONSTANT: Reported positions of agents
     p_true = [agents[i].get_true_pos() for i in range(num_agents)]              # CONSTANT: True pos
-    p_hat_history = [np.zeros((dim, n_iter)) for i in range(num_agents)]        # Value of p_hat at each iteration of algorithm
-
-    # Interagent measurement
     y = measurements(p_true, x_star)                                            # CONSTANT: Phi(p_hat + x_hat), true interagent measurement
-
-    # Residuals
     residuals = [np.zeros(n_iter) for i in range(num_agents)]                   # Running residuals of each agent (residual <= 1 is nominal)
 
 
 
     ###      Initializations    - Optimization Parameters
-
-    reset_lam = [False] * num_agents
-    reset_mu = [False] * num_agents
     total_iterations = np.arange((n_iter))
     for agent_id, agent in enumerate(agents):
         num_edges       = len(agent.get_edge_indices())
@@ -234,7 +225,7 @@ def main_func(rho, warm_start, trial_num, return_dict):
             print(f"\tID: {id}\t\t Vector: {fault_vec[i].flatten()}")
 
 
-    ### Store stuff
+    ###     Store stuff
     lam_norm_history = [np.zeros((len(agents[i].get_edge_indices()), n_iter)) for i in range(num_agents)]
     mu_norm_history = [np.zeros((len(agents[i].get_neighbors()), n_iter)) for i in range(num_agents)]
     sum_err_rmse = 0.0
@@ -244,24 +235,6 @@ def main_func(rho, warm_start, trial_num, return_dict):
     ###     Looping             - SCP Outer Loop
 
     for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False, disable=(not show_prints)):
-
-        # Set p_hat depending on iteration number
-        for id, agent in enumerate(agents):
-            if (id in faulty_id2) and (outer_i >= round(n_scp*2/3)):
-                agent.faulty = True
-                x_true[id] = fault_vec[faulty_id.index(id)]
-
-            elif (id in faulty_id1) and ( (outer_i >= round(n_scp*1/3)) and (outer_i < round(n_scp*2/3)) ):
-                agent.faulty = True
-                x_true[id] = fault_vec[faulty_id.index(id)]
-
-            else:
-                agent.faulty = False
-                x_true[id] *= 0.
-            
-            p_hat[id] = agent.get_estimated_pos()
-            
-
         # Noise in Position Estimate
         p_hat_noise = deepcopy(p_hat)
         for i, _ in enumerate(p_hat_noise):
@@ -328,13 +301,13 @@ def main_func(rho, warm_start, trial_num, return_dict):
 
                     try:
                         prob1.solve(verbose=show_prob1)
-                    except KeyboardInterrupt:
-                        print("\n\n~~~ KEYBOARD INTERRUPT ~~~\n\n")
-                        quit()
-                    except:
-                        print("\t -> SOLVER ERROR")
+                    except cp.SolverError:
                         solver_err = True
+                        print("\t -> Solver Error")
                         break
+                    except KeyboardInterrupt:
+                        print(" Keyboard Interupt ")
+                        quit()
 
                     if prob1.status != cp.OPTIMAL:
                         print("\nERROR Problem 1: Optimization problem not solved @ (%d, %d, %d)" % (inner_i, outer_i, id))
@@ -374,13 +347,13 @@ def main_func(rho, warm_start, trial_num, return_dict):
                 
                 try:
                     prob2.solve(verbose=show_prob2)
-                except KeyboardInterrupt:
-                    print("\n\n~~~ KEYBOARD INTERRUPT ~~~\n\n")
-                    quit()
-                except:
-                    print("\t -> SOLVER ERROR")
+                except cp.SolverError:
                     solver_err = True
+                    print("\t -> Solver Error")
                     break
+                except KeyboardInterrupt:
+                    print(" Keyboard Interupt ")
+                    quit()
 
                 if prob2.status != cp.OPTIMAL:
                     print("\nERROR Problem 2: Optimization problem not solved @ (%d, %d, %d)" % (inner_i, outer_i, agent_id))
@@ -388,6 +361,10 @@ def main_func(rho, warm_start, trial_num, return_dict):
                 for _, nbr_id in enumerate(agent.get_neighbors()):
                     agent.w[nbr_id] = deepcopy(np.array(agent.w_cp[nbr_id].value).reshape((-1, 1)))
 
+
+            ##      Check               - Solver Error
+            if solver_err:
+                break
 
             ##      Multipliers         - Update Lagrangian Multipliers of Minimization Problem
             for agent_id, agent in enumerate(agents):
@@ -401,37 +378,19 @@ def main_func(rho, warm_start, trial_num, return_dict):
                     new_lam = (agent.lam[edge_ind] + rho * constr_c)
                     agent.lam[edge_ind] = deepcopy(new_lam)
                     lam_norm_history[agent_id][i, (inner_i + outer_i*n_admm)] = np.linalg.norm(deepcopy(new_lam))
-                    
-                    if (not warm_start) and (np.linalg.norm(new_lam) > lam_lim):
-                        # print(f"RESET LAM: Agent {agent_id} at SCP {outer_i}")
-                        reset_lam[agent_id] = True
+
 
                 # Summation for d() constraint
                 for i, nbr_id in enumerate(agent.get_neighbors()):
                     constr_d = agent.x_bar - agent.w[nbr_id]
-
                     new_mu = (agent.mu[nbr_id] + rho * constr_d)
                     agent.mu[nbr_id] = deepcopy(new_mu)
                     mu_norm_history[agent_id][i, (inner_i + outer_i*n_admm)] = np.linalg.norm(deepcopy(new_mu))
 
-                    if (not warm_start) and (np.linalg.norm(new_mu) > mu_lim):
-                        # print(f"RESET MU: Agent {agent_id} at SCP {outer_i}")
-                        reset_mu[agent_id] = True
-                    
-            
-            ##      Store           - Position and Error Vectors
-            for id, agent in enumerate(agents):
-                # True Position
-                p_hat_history[id][:, inner_i + outer_i*n_admm] = p_hat[id].flatten()
-            
-            ##      Check for Solver Error
-            if solver_err:
-                break
-
 
         ###     END Looping         - ADMM Inner Loop
 
-        ##      Check for Solver Error
+        # Check Solver Error
         if solver_err:
             break
         
@@ -445,67 +404,183 @@ def main_func(rho, warm_start, trial_num, return_dict):
             
             # Update position and x_dev
             p_est[agent_id] = p_hat_noise[agent_id] + x_star[agent_id]
-        
-        # Check if a reset flag was set
-        for agent_id, agent in enumerate(agents):
-            if (not warm_start) and (reset_lam[agent_id] or reset_mu[agent_id]):
-                # print(f"RESET DUAL: Agent {agent_id} at SCP {outer_i}")
-                agent.init_lam(np.zeros((1, 1)), agent.get_edge_indices())
-                agent.init_mu(np.zeros((dim, 1)), agent.get_neighbors())
-                reset_mu[agent_id] = False
-                reset_lam[agent_id] = False
 
     ###     END Looping         - SCP Outer Loop
 
     final_time = time()
-    # print(f"Inner: {inner_i}; \t Outer: {outer_i}")
-    final_iteration = 1 + (inner_i) + (outer_i)*n_admm
     if show_prints:
-        print(f"==================================================================================")
+        print("==================================================================================")
         print(f"IAM Noise: {iam_noise}")
         print(f"Position Noise: {pos_noise}")
         print(f"Penalty Parameter: {rho}")
         print(f"Warm Start: {warm_start}")
-        print(f"----------------------------------------------------------------------------------")
+        print("----------------------------------------------------------------------------------")
         print(f"Average RMSE: {sum_err_rmse / num_agents} m")
         print(f"Elapsed Time: {final_time - start_time} seconds")
         print(f"Average Time per Iteration: {(final_time - start_time)/n_iter} seconds")
-        print(f"Average Time per Iteration per Agent: {(final_time - start_time)/(n_iter*num_agents)} seconds")
-        print(f"==================================================================================")
-
-    # return (sum_err_rmse, num_agents, final_iteration)
-    return_dict[(rho, warm_start, trial_num)] = (sum_err_rmse, num_agents, final_iteration)
-    return
+        print("==================================================================================")
     
 
 
-### Main
+    ###     Plotting            - Static Position Estimates
+
+    plt.rcParams.update({'text.usetex': True,
+                        'font.family': 'Helvetica'})
+
+    # Create position estimate over time data
+    p_hist = []
+    for id in range(num_agents):
+        p_id = np.zeros((dim, n_iter))
+        for iter in range(n_iter):
+            p_id[:,iter] = p_hat[id].flatten() + x_history[id][:, iter]
+        p_hist.append(p_id)
+
+
+
+    ###     Plotting            - Error Convergence
+
+    if save_err:
+
+        # Show convergence of estimated error vector to true error vector over time
+        x_norm_history = [x_norm_history[i].flatten() for i in range(num_agents)]
+        fig_err = plt.figure(dpi=500, figsize=(6,4))
+        ax_err = fig_err.add_subplot()
+        lines = [None] * num_agents
+
+        for agent_id, agent in enumerate(agents):
+            label_str = f"Agent {agent_id}"
+            plt_color = 'slategray'
+            if agent_id in faulty_id:
+                plt_color = 'orangered'
+            lines[agent_id] = ax_err.plot(total_iterations, x_norm_history[agent_id], c=plt_color, label=label_str)[0]
+
+        plt.title(r'Error Vector Convergence ( $\rho = {}$ )'.format(rho))
+        plt.xlabel(r'ADMM Iterations')
+        plt.ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i] ) \| $')
+        plt.ylim((0, 1.25))
+        plt.xlim((0, (n_iter - 1)))
+        plt.xticks(ticks=range(0, (n_iter), n_admm))
+        plt.yticks(ticks=np.arange(0, 1.25, 0.25))
+        plt.legend([lines[1], lines[faulty_id[0]]], [r'$i \in$ Nominal Agents', r'$i \in$ Faulty Agents'])
+        plt.grid(True)
+
+        dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # fname_err = "fig/3D-NoisyComplex/err_conv_" + dt_string + ".svg"
+        fname_err = f"final_fig/static/{noise_level}/err_conv_{dt_string}.svg"
+        plt.savefig(fname_err, dpi=500)
+
+
+
+    ###     Plotting            - Animation
+
+    if save_ani:
+
+        # Start figure
+        fig2 = plt.figure(dpi=500)
+        ax2 = fig2.add_subplot(projection='3d')
+        ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
+        ax2.set_xlabel(r"$x$-position")
+        ax2.set_ylabel(r"$y$-position")
+        ax2.set_zlabel(r"$z$-position")
+        scat_pos_est = [None] * num_agents # Position estimate during reconstruction
+        scat_pos_hat = [None] * num_agents # Initial position estimate
+        scat_pos_true = [None] * num_agents # True positions
+        line_pos_est = [None] * len(edges) # Inter-agent communication
+        ax2.set_xlim((0, 7))
+        ax2.set_ylim((0, 7))
+        ax2.set_zlim((0, 7))
+
+        # Draw each agent's original estimated, current estimated, and true positions
+        for agent_id, _ in enumerate(agents):
+            scat_pos_est[agent_id] = ax2.plot(p_hist[agent_id][0, 0], p_hist[agent_id][1, 0], p_hist[agent_id][2, 0], 
+                                                marker='*', c='c', linestyle='None', label="After", markersize=10)[0]
+            scat_pos_hat[agent_id] = ax2.plot(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2], 
+                                                marker='o', markerfacecolor='none', c='orangered', linestyle='None', label="Before", markersize=10)[0]
+            scat_pos_true[agent_id] = ax2.plot(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], 
+                                                marker='x', c='g', linestyle='None', label="True", markersize=10)[0]
+            # ax2.text(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2],
+            #         "%s" % (agent_id), size=10, zorder=1, color='k')
+
+        # Draw line for each edge of network
+        for i, edge in enumerate(edges):
+            p1 = p_hist[edge[0]][:, 0]
+            p2 = p_hist[edge[1]][:, 0]
+            x = [p1[0], p2[0]]
+            y = [p1[1], p2[1]]
+            z = [p1[2], p2[2]]
+            line_pos_est[i] = ax2.plot(x, y, z, c='k', linewidth=1, alpha=0.5)[0]
+        ax2.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
+        ax2.grid(True)
+
+        # Update function
+        def update_pos_plot(frame):
+            updated_ax = []
+            # Draw each agent's original estimated, current estimated, and true positions
+            for agent_id, _ in enumerate(agents):
+                new_pos = (float(p_hist[agent_id][0, frame]), float(p_hist[agent_id][1, frame]), float(p_hist[agent_id][2, frame]))
+
+                scat_pos_est[agent_id].set_data([new_pos[0]], [new_pos[1]])
+                scat_pos_est[agent_id].set_3d_properties([new_pos[2]])
+
+                updated_ax.append(scat_pos_est[agent_id])
+            
+            # Draw line for each edge of network
+            for i, edge in enumerate(edges):
+                p1 = p_hist[edge[0]][:, frame]
+                p2 = p_hist[edge[1]][:, frame]
+                x = [p1[0], p2[0]]
+                y = [p1[1], p2[1]]
+                z = [p1[2], p2[2]]
+
+                line_pos_est[i].set_data(x, y)
+                line_pos_est[i].set_3d_properties(z)
+
+                updated_ax.append(line_pos_est[i])
+            
+            return updated_ax
+            
+        # Call update function
+        pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
+        # fname = "fig/3D-NoisyComplex/pos3D_ani_" + dt_string + ".gif"
+        fname = f"final_fig/static/{noise_level}/pos3D_ani_{dt_string}.gif"
+        pos_ani.save(filename=fname, writer="pillow", dpi=500)
+    
+    ###     Return
+
+    final_iter = 1 + inner_i + outer_i*n_admm
+    # return (sum_err_rmse, num_agents, n_iter)
+    return_dict[(rho, iam_noise, trial_num)] = (sum_err_rmse, num_agents, final_iter)
+    plt.close("all")
+    return
+
+
+###     MAIN
 if __name__ == '__main__':
     # Multiprocessing Handling
     manager = mp.Manager()
     return_dict = manager.dict()
 
-    # Trial Parameters and Related Variables
+    # Simulation Parameters and Related Variables
     num_trials = 100
     rho_arr = [0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5]
-    warm_start_arr = [True, False]
-    trials_rmse_arr = np.zeros((len(warm_start_arr), len(rho_arr), num_trials))
-    avg_rmse_arr = np.zeros((len(warm_start_arr), len(rho_arr)))
+    iam_noise_arr = [0.02, 0.05]
+    trials_rmse_arr = np.zeros((len(iam_noise_arr), len(rho_arr), num_trials))
+    avg_rmse_arr = np.zeros((len(iam_noise_arr), len(rho_arr)))
 
     # Create Processes
-    pool = mp.Pool(processes=11)
+    pool = mp.Pool(processes=10)
     args = []
-    for i, warm_start in enumerate(warm_start_arr):
+    for i, iam_noise in enumerate(iam_noise_arr):
         for j, rho in enumerate(rho_arr):
             for trial_num in range(num_trials):
-                args.append((rho, warm_start, trial_num, return_dict))
+                args.append((rho, iam_noise, trial_num, return_dict))
     pool.starmap(main_func, args)
-    
+
     # Get results in useful format
     for key in return_dict.keys():
         # Extract Key Values
         rho = key[0] 
-        warm_start = key[1]
+        iam_noise = key[1]
         trial_num = key[2]
 
         # Extract Dictionary Value
@@ -516,42 +591,41 @@ if __name__ == '__main__':
 
         # Compute and Assign
         this_avg_rmse = trial_rmse / (num_agents * final_iter)
-        warm_ind = warm_start_arr.index(warm_start)
-        rho_ind = rho_arr.index(rho)
-        trials_rmse_arr[warm_ind, rho_ind, trial_num] = this_avg_rmse
-        avg_rmse_arr[warm_ind, rho_ind] += this_avg_rmse
+        i = iam_noise_arr.index(iam_noise)
+        j = rho_arr.index(rho)
+        trials_rmse_arr[i, j, trial_num] = this_avg_rmse
+        avg_rmse_arr[i, j] += this_avg_rmse
 
     # Save numpy array binary for later use
     dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    fname_rmse = f"data/multiple_discrete/discrete_data_{dt_string}"
-    np.save(fname_rmse, trials_rmse_arr)
+    fname_np = f"data/multiple_static/static_data_{dt_string}"
+    np.save(fname_np, trials_rmse_arr)
 
     # Print data results to terminal
     print(f"\nAll {num_trials} trials completed. Results: ")
-    print("========================================================")
+    print("===================================================================")
     for i, rho in enumerate(rho_arr):
-        for j, warm_start in enumerate(warm_start_arr):
+        for j, iam_noise in enumerate(iam_noise_arr):
             this_avg = np.mean(trials_rmse_arr[j, i, :].flatten())
             this_std = np.std(trials_rmse_arr[j, i, :].flatten())
 
-            print(f"Warm Start: {warm_start}; \tRho: {rho}; \tAvg RMSE: {this_avg}; \tStd RMSE: {this_std}")
+            print(f"IAM Noise: {iam_noise}; \tRho: {rho} ; \tAvg RMSE: {this_avg}; \tStd RMSE: {this_std}")
         print(f" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("========================================================\n")
-
+    print("\n===================================================================\n")
 
     ## Plot avg RMSE vs. rho
 
     fig = plt.figure(dpi=500)
     ax = fig.add_subplot()
-    ax.loglog(rho_arr, avg_rmse_arr[0, :]/num_trials, c='orangered', label="Warm Start")
-    ax.loglog(rho_arr, avg_rmse_arr[1, :]/num_trials, c='aquamarine', label="Cold Start")
+    ax.plot(rho_arr, avg_rmse_arr[0, :]/num_trials, c='orangered', label="Low Noise") #r"$\rho = {}$".format(iam_noise_arr[0]))
+    ax.plot(rho_arr, avg_rmse_arr[1, :]/num_trials, c='aquamarine', label="High Noise") #r"$\rho = {}$".format(iam_noise_arr[1]))
     ax.set_title("")
     ax.set_xlabel(r"$ \rho $")
     ax.set_ylabel("Average RMSE")
     ax.legend(loc='best')
     ax.grid(True)
 
-    fname_plt = f"fig/3D-NoisyDiscreteComplex/rmse_compare_{dt_string}.svg"
+    fname_plt = f"fig/3D-NoisyComplex/rmse_compare_{dt_string}.svg"
     plt.savefig(fname_plt, dpi=500)
 
     plt.show()
