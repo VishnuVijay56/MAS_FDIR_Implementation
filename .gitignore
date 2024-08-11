@@ -3,3 +3,6 @@
 *.pyc
 *.gif
 *.svg
+*.npy
+*.npz
+*.mp4

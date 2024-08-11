@@ -1,0 +1,39 @@
+Simulation Results for Discrete Configuration Changes: All 100 trials completed...
+===========================================================================================================================
+Warm Start:     1;      Rho: 0.010;     Avg RMSE:  0.09207;     Stdev RMSE:  0.00015;   Time: 0.06546
+Warm Start:     0;      Rho: 0.010;     Avg RMSE:  0.09210;     Stdev RMSE:  0.00018;   Time: 0.06445
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.025;     Avg RMSE:  0.06384;     Stdev RMSE:  0.00046;   Time: 0.06491
+Warm Start:     0;      Rho: 0.025;     Avg RMSE:  0.06386;     Stdev RMSE:  0.00053;   Time: 0.06735
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.050;     Avg RMSE:  0.04480;     Stdev RMSE:  0.00085;   Time: 0.06649
+Warm Start:     0;      Rho: 0.050;     Avg RMSE:  0.04475;     Stdev RMSE:  0.00076;   Time: 0.06495
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.075;     Avg RMSE:  0.03617;     Stdev RMSE:  0.00060;   Time: 0.06780
+Warm Start:     0;      Rho: 0.075;     Avg RMSE:  0.03625;     Stdev RMSE:  0.00066;   Time: 0.06669
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.100;     Avg RMSE:  0.02898;     Stdev RMSE:  0.00072;   Time: 0.06623
+Warm Start:     0;      Rho: 0.100;     Avg RMSE:  0.02901;     Stdev RMSE:  0.00074;   Time: 0.06751
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.250;     Avg RMSE:  0.02141;     Stdev RMSE:  0.00073;   Time: 0.06527
+Warm Start:     0;      Rho: 0.250;     Avg RMSE:  0.02145;     Stdev RMSE:  0.00075;   Time: 0.06445
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.500;     Avg RMSE:  0.22056;     Stdev RMSE:  1.25110;   Time: 0.06738
+Warm Start:     0;      Rho: 0.500;     Avg RMSE:  0.02272;     Stdev RMSE:  0.00105;   Time: 0.06606
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 0.750;     Avg RMSE:  6.51143;     Stdev RMSE:  6.38740;   Time: 0.06454
+Warm Start:     0;      Rho: 0.750;     Avg RMSE:  0.04726;     Stdev RMSE:  0.10369;   Time: 0.06898
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 1.000;     Avg RMSE:  8.29083;     Stdev RMSE:  6.75398;   Time: 0.06916
+Warm Start:     0;      Rho: 1.000;     Avg RMSE:  4.95923;     Stdev RMSE: 13.55912;   Time: 0.06426
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 1.250;     Avg RMSE: 10.41183;     Stdev RMSE:  7.13416;   Time: 0.06471
+Warm Start:     0;      Rho: 1.250;     Avg RMSE:  9.22780;     Stdev RMSE: 14.35039;   Time: 0.06264
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 1.500;     Avg RMSE: 13.53064;     Stdev RMSE:  6.61548;   Time: 0.06366
+Warm Start:     0;      Rho: 1.500;     Avg RMSE: 16.05812;     Stdev RMSE: 16.84768;   Time: 0.06460
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Warm Start:     1;      Rho: 2.000;     Avg RMSE: 15.37038;     Stdev RMSE:  5.33142;   Time: 0.06280
+Warm Start:     0;      Rho: 2.000;     Avg RMSE: 21.23262;     Stdev RMSE: 15.65923;   Time: 0.06225
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+===========================================================================================================================

@@ -1,0 +1,40 @@
+Simulation Results for Static Configuration: All 100 trials completed...
+======================================================================================================================================
+IAM Noise: 0.020;       Rho: 0.0100 ;   Avg RMSE:  0.18778;     Stdev RMSE:  0.00272;   Time: 0.06587
+IAM Noise: 0.050;       Rho: 0.0100 ;   Avg RMSE:  0.18795;     Stdev RMSE:  0.00217;   Time: 0.06906
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.0250 ;   Avg RMSE:  0.11641;     Stdev RMSE:  0.00501;   Time: 0.06842
+IAM Noise: 0.050;       Rho: 0.0250 ;   Avg RMSE:  0.11422;     Stdev RMSE:  0.00525;   Time: 0.06646
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.0500 ;   Avg RMSE:  0.06584;     Stdev RMSE:  0.00210;   Time: 0.06465
+IAM Noise: 0.050;       Rho: 0.0500 ;   Avg RMSE:  0.06699;     Stdev RMSE:  0.00229;   Time: 0.06559
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.0750 ;   Avg RMSE:  0.04914;     Stdev RMSE:  0.00124;   Time: 0.06703
+IAM Noise: 0.050;       Rho: 0.0750 ;   Avg RMSE:  0.04961;     Stdev RMSE:  0.00140;   Time: 0.06644
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.1000 ;   Avg RMSE:  0.03676;     Stdev RMSE:  0.00093;   Time: 0.06478
+IAM Noise: 0.050;       Rho: 0.1000 ;   Avg RMSE:  0.03778;     Stdev RMSE:  0.00109;   Time: 0.06372
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.2500 ;   Avg RMSE:  0.02580;     Stdev RMSE:  0.00059;   Time: 0.06663
+IAM Noise: 0.050;       Rho: 0.2500 ;   Avg RMSE:  0.02739;     Stdev RMSE:  0.00063;   Time: 0.06835
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.5000 ;   Avg RMSE:  0.02531;     Stdev RMSE:  0.00061;   Time: 0.06597
+IAM Noise: 0.050;       Rho: 0.5000 ;   Avg RMSE:  0.02777;     Stdev RMSE:  0.00076;   Time: 0.06542
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 0.7500 ;   Avg RMSE:  0.02707;     Stdev RMSE:  0.00071;   Time: 0.06412
+IAM Noise: 0.050;       Rho: 0.7500 ;   Avg RMSE:  0.33677;     Stdev RMSE:  2.13988;   Time: 0.06286
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 1.0000 ;   Avg RMSE:  0.51672;     Stdev RMSE:  2.38798;   Time: 0.06553
+IAM Noise: 0.050;       Rho: 1.0000 ;   Avg RMSE:  4.74293;     Stdev RMSE: 10.13735;   Time: 0.06144
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 1.2500 ;   Avg RMSE:  1.86194;     Stdev RMSE:  6.33742;   Time: 0.06777
+IAM Noise: 0.050;       Rho: 1.2500 ;   Avg RMSE:  8.38134;     Stdev RMSE: 12.70925;   Time: 0.06358
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 1.5000 ;   Avg RMSE:  6.65461;     Stdev RMSE: 10.32483;   Time: 0.06463
+IAM Noise: 0.050;       Rho: 1.5000 ;   Avg RMSE: 10.41663;     Stdev RMSE: 13.53841;   Time: 0.06114
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+IAM Noise: 0.020;       Rho: 2.0000 ;   Avg RMSE: 19.39906;     Stdev RMSE: 12.27444;   Time: 0.06490
+IAM Noise: 0.050;       Rho: 2.0000 ;   Avg RMSE: 23.11921;     Stdev RMSE: 12.10264;   Time: 0.06481
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+======================================================================================================================================

@@ -49,15 +49,15 @@ iam_noise       =   0.02
 pos_noise       =   0.02
 
 # Thresholds
-warm_start      =   False
-dual_var_check  =   False
-R_diff_check    =   True
+warm_start      =   True
+dual_var_check  =   True
+R_diff_check    =   False
 lam_thresh      =   1.5
 mu_thresh       =   5e-3
 R_diff_thresh   =   1
 
 # Show
-show_plots = True
+show_plots = False
 
 
 ###     Assertions
@@ -598,36 +598,37 @@ plt.yticks(ticks=np.arange(0, 1.25, 0.25))
 plt.legend([lines[1], lines[faulty_id[0]]], [r'$i \in$ Nominal Agents', r'$i \in$ Faulty Agents'])
 plt.grid(True)
 
-dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+dt_string = datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
 fname_err = "fig/3D-NoisyDiscreteComplex/err_conv_" + dt_string + ".svg"
-plt.savefig(fname_err, dpi=500)
+# plt.savefig(fname_err, dpi=500)
 
 
 ###     Plotting            - Animation
 
 # Start figure
-fig2 = plt.figure(dpi=500)
-ax2 = fig2.add_subplot(projection='3d')
-ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
-ax2.set_xlabel(r"$x$-position")
-ax2.set_ylabel(r"$y$-position")
-ax2.set_zlabel(r"$z$-position")
+fig2 = plt.figure(dpi=500, figsize=(16,9))
+ax2_1 = fig2.add_subplot(1, 2, 1, projection='3d')
+ax2_2 = fig2.add_subplot(1, 2, 2)
+ax2_1.set_title(r"$\textnormal{Swarm States}$", fontsize=18)
+ax2_1.set_xlabel(r"$x\textnormal{-position}$", fontsize=16)
+ax2_1.set_ylabel(r"$y\textnormal{-position}$", fontsize=16)
+ax2_1.set_zlabel(r"$z\textnormal{-position}$", fontsize=16)
 scat_pos_est = [None] * num_agents # Position estimate during reconstruction
 scat_pos_hat = [None] * num_agents # Initial position estimate
 scat_pos_true = [None] * num_agents # True positions
 line_pos_est = [None] * len(edges) # Inter-agent communication
-ax2.set_xlim((0, 7))
-ax2.set_ylim((0, 7))
-ax2.set_zlim((0, 7))
+ax2_1.set_xlim((0, 7))
+ax2_1.set_ylim((0, 7))
+ax2_1.set_zlim((0, 7))
 
 # Draw each agent's original estimated, current estimated, and true positions
 for agent_id, _ in enumerate(agents):
-    scat_pos_est[agent_id] = ax2.plot(p_est_hist[agent_id][0, 0], p_est_hist[agent_id][1, 0], p_est_hist[agent_id][2, 0], 
+    scat_pos_hat[agent_id] = ax2_1.plot(p_hat_history[agent_id][0, 0], p_hat_history[agent_id][1, 0], p_hat_history[agent_id][2, 0], 
+                                        marker='o', markerfacecolor='none', c='orangered', linestyle='None', label="Before", markersize=15)[0]
+    scat_pos_true[agent_id] = ax2_1.plot(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], 
+                                        marker='x', c='yellowgreen', linestyle='None', label="True", markersize=8)[0]
+    scat_pos_est[agent_id] = ax2_1.plot(p_est_hist[agent_id][0, 0], p_est_hist[agent_id][1, 0], p_est_hist[agent_id][2, 0], 
                                         marker='*', c='c', linestyle='None', label="After", markersize=10)[0]
-    scat_pos_hat[agent_id] = ax2.plot(p_hat_history[agent_id][0, 0], p_hat_history[agent_id][1, 0], p_hat_history[agent_id][2, 0], 
-                                        marker='o', markerfacecolor='none', c='orangered', linestyle='None', label="Before", markersize=10)[0]
-    scat_pos_true[agent_id] = ax2.plot(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], 
-                                        marker='x', c='g', linestyle='None', label="True", markersize=10)[0]
     # ax2.text(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2],
     #         "%s" % (agent_id), size=10, zorder=1, color='k')
 
@@ -638,24 +639,51 @@ for i, edge in enumerate(edges):
     x = [p1[0], p2[0]]
     y = [p1[1], p2[1]]
     z = [p1[2], p2[2]]
-    line_pos_est[i] = ax2.plot(x, y, z, c='k', linewidth=1, alpha=0.25)[0]
-ax2.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
-ax2.grid(True)
+    line_pos_est[i] = ax2_1.plot(x, y, z, c='k', linewidth=1, alpha=0.25)[0]
+ax2_1.set_aspect('equal')
+ax2_1.legend([r"$\textnormal{Estimated State}$", r"$\textnormal{True State}$", r"$\textnormal{Reconstructed State}$"],
+           fancybox=True, loc='upper left', bbox_to_anchor=(-0.35, 0.6), ncols=1, fontsize=16)
+ax2_1.grid(True)
+
+# Error Convergence Plot Animation
+ax2_2.set_title(r"$\textnormal{Error Convergence}$", fontsize=18)
+err_lines = [None] * num_agents
+for agent_id, agent in enumerate(agents):
+    plt_color = 'slategray'
+    if agent_id in faulty_id:
+        plt_color = 'orangered'
+    err_lines[agent_id] = ax2_2.plot(total_iterations[0], x_norm_history[agent_id][0], c=plt_color)[0]
+
+ax2_2.set_xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
+ax2_2.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \|_2 $', fontsize=16)
+ax2_2.set_ylim((0, 1.25))
+ax2_2.set_xlim((0, (n_iter - 1)))
+ax2_2.set_xticks(ticks=np.arange(0, (n_iter-1), n_admm))
+ax2_2.set_yticks(ticks=np.arange(0, 1.25, 0.25))
+ax2_2.legend([lines[1], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'], fontsize=14)
+ax2_2.grid(True)
 
 # Update function
 def update_pos_plot(frame):
     updated_ax = []
     # Draw each agent's original estimated, current estimated, and true positions
     for agent_id, _ in enumerate(agents):
+        # State Reconstruction
         new_pos = (float(p_est_hist[agent_id][0, frame]), float(p_est_hist[agent_id][1, frame]), float(p_est_hist[agent_id][2, frame]))
         scat_pos_est[agent_id].set_data([new_pos[0]], [new_pos[1]])
         scat_pos_est[agent_id].set_3d_properties([new_pos[2]])
-
+        updated_ax.append(scat_pos_est[agent_id])
+        
+        # State Estimation
         new_p_hat = (float(p_hat_history[agent_id][0, frame]), float(p_hat_history[agent_id][1, frame]), float(p_hat_history[agent_id][2, frame]))
         scat_pos_hat[agent_id].set_data([new_p_hat[0]], [new_p_hat[1]])
         scat_pos_hat[agent_id].set_3d_properties([new_p_hat[2]])
-
-        updated_ax.append(scat_pos_est[agent_id])
+        updated_ax.append(scat_pos_hat[agent_id])
+        
+        # Error
+        err_lines[agent_id].set_data(total_iterations[0:frame], x_norm_history[agent_id][0:frame])
+        updated_ax.append(err_lines[agent_id])
+        
     
     # Draw line for each edge of network
     for i, edge in enumerate(edges):
@@ -674,8 +702,8 @@ def update_pos_plot(frame):
     
 # Call update function
 pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
-fname_ani = "fig/3D-NoisyDiscreteComplex/pos3D_ani_" + dt_string + ".gif"
-pos_ani.save(filename=fname_ani, writer="pillow")
+fname_ani = "fig/3D-NoisyDiscreteComplex/combined_ani-" + dt_string + ".mp4"
+pos_ani.save(filename=fname_ani)#, writer="pillow")
 
 
 ###     Plotting            - Residuals and Threshold

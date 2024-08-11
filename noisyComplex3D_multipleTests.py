@@ -561,8 +561,8 @@ if __name__ == '__main__':
     return_dict = manager.dict()
 
     # Simulation Parameters and Related Variables
-    num_trials = 100
-    rho_arr = [0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5]
+    num_trials = 1
+    rho_arr = [0.25, 1.25] #[0.01, 0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.25, 1.5]
     iam_noise_arr = [0.02, 0.05]
     trials_rmse_arr = np.zeros((len(iam_noise_arr), len(rho_arr), num_trials))
     avg_rmse_arr = np.zeros((len(iam_noise_arr), len(rho_arr)))
@@ -617,8 +617,8 @@ if __name__ == '__main__':
 
     fig = plt.figure(dpi=500)
     ax = fig.add_subplot()
-    ax.plot(rho_arr, avg_rmse_arr[0, :]/num_trials, c='orangered', label="Low Noise") #r"$\rho = {}$".format(iam_noise_arr[0]))
-    ax.plot(rho_arr, avg_rmse_arr[1, :]/num_trials, c='aquamarine', label="High Noise") #r"$\rho = {}$".format(iam_noise_arr[1]))
+    ax.loglog(rho_arr, avg_rmse_arr[0, :]/num_trials, c='orangered', label="Low Noise") #r"$\rho = {}$".format(iam_noise_arr[0]))
+    ax.loglog(rho_arr, avg_rmse_arr[1, :]/num_trials, c='aquamarine', label="High Noise") #r"$\rho = {}$".format(iam_noise_arr[1]))
     ax.set_title("")
     ax.set_xlabel(r"$ \rho $")
     ax.set_ylabel("Average RMSE")

@@ -19,7 +19,8 @@ Description:
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d as p3
+from mpl_toolkits.mplot3d import proj3d
+from matplotlib.patches import FancyArrowPatch
 import matplotlib.animation as animation
 
 from copy import deepcopy
@@ -46,7 +47,7 @@ use_threshold   =   False
 rho             =   1.25
 iam_noise       =   0.05
 pos_noise       =   0.02
-warm_start      =   True
+warm_start      =   False
 lam_lim         =   1
 mu_lim          =   1
 
@@ -207,6 +208,7 @@ for agent_id, agent in enumerate(agents):
 ###     Initializations     - List Parameters
 print("\n~ ~ ~ ~ PARAMETERS ~ ~ ~ ~")
 print("rho:", rho)
+print("Noise (pos, iam):", (pos_noise, iam_noise))
 print("Number of agents:", num_agents)
 print("Faulty Agent ID and Vector:")
 for i, id in enumerate(faulty_id):
@@ -218,6 +220,7 @@ lam_norm_history = [np.zeros((len(agents[i].get_edge_indices()), n_iter)) for i 
 mu_norm_history = [np.zeros((len(agents[i].get_neighbors()), n_iter)) for i in range(num_agents)]
 sum_err_rmse = 0.0
 start_time = time()
+solver_err = False
 
 ###     Looping             - SCP Outer Loop
 print("\nStarting Loop")
@@ -285,7 +288,17 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
                                 + agent.mu[nbr_id].T @ (constr_d))
                     
                 prob1 = cp.Problem(cp.Minimize(objective), [])
-                prob1.solve(verbose=show_prob1)
+                
+                try:
+                    prob1.solve(solver=cp.MOSEK, verbose=show_prob1)
+                except KeyboardInterrupt:
+                    print("\t-> Keyboard Interrupt")
+                    quit()
+                # except:
+                    solver_err = True
+                    print("\t-> Solver Error")
+                    break
+                    
                 if prob1.status != cp.OPTIMAL:
                     print("\nERROR Problem 1: Optimization problem not solved @ (%d, %d, %d)" % (inner_i, outer_i, id))
                 
@@ -321,14 +334,28 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
                               + agent.mu[nbr_id].T @ (constr_d))
                 
             prob2 = cp.Problem(cp.Minimize(objective), [])
-            prob2.solve(verbose=show_prob2)
+            
+            try:
+                prob2.solve(solver=cp.MOSEK, verbose=show_prob2)
+            except KeyboardInterrupt:
+                print("\t-> Keyboard Interrupt")
+                quit()
+            except:
+                solver_err = True
+                print("\t-> Solver Error")
+                break
+            
             if prob2.status != cp.OPTIMAL:
                 print("\nERROR Problem 2: Optimization problem not solved @ (%d, %d, %d)" % (inner_i, outer_i, agent_id))
 
             for _, nbr_id in enumerate(agent.get_neighbors()):
                 agent.w[nbr_id] = deepcopy(np.array(agent.w_cp[nbr_id].value).reshape((-1, 1)))
 
-
+        ##      Check               - Solver Error
+        if solver_err:
+            break
+        
+        
         ##      Multipliers         - Update Lagrangian Multipliers of Minimization Problem
         for agent_id, agent in enumerate(agents):
             
@@ -352,6 +379,10 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
 
 
     ###     END Looping         - ADMM Inner Loop
+    
+    # Check Solver Error
+    if solver_err:
+        break
     
     # Update Error Vectors after ADMM subroutine
     for agent_id, agent in enumerate(agents): 
@@ -378,6 +409,7 @@ print(f"Elapsed Time: {final_time - start_time} seconds")
 print(f"Average Time per Iteration: {(final_time - start_time)/n_iter} seconds")
 print("==================================================================================")
 
+final_iter = 1 + inner_i + outer_i*n_admm
 
 
 ###     Plotting            - Static Position Estimates
@@ -385,6 +417,19 @@ print("\nPlotting")
 print()
 plt.rcParams.update({'text.usetex': True,
                         'font.family': 'Helvetica'})
+
+# Arrow Class
+class Arrow3D(FancyArrowPatch):
+    def __init__(self, xs, ys, zs, *args, **kwargs):
+        super().__init__((0,0), (0,0), *args, **kwargs)
+        self._verts3d = xs, ys, zs
+
+    def do_3d_projection(self, renderer=None):
+        xs3d, ys3d, zs3d = self._verts3d
+        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
+        self.set_positions((xs[0],ys[0]),(xs[1],ys[1]))
+
+        return np.min(zs)
 
 # Create position estimate over time data
 p_hist = []
@@ -395,30 +440,48 @@ for id in range(num_agents):
     p_hist.append(p_id)
 
 # Compare position estimates before and after reconstruction
-fig1 = plt.figure(dpi=300)
+fig1 = plt.figure(dpi=500,figsize=(4,4))
 ax1 = fig1.add_subplot(projection='3d')
-ax1.set_title(r"Agent Position Estimates")
-ax1.set_xlabel(r"$x$")
-ax1.set_ylabel(r"$y$")
-ax1.set_zlabel(r"$z$")
+# ax1.set_title(r"Agent Position Estimates")
+ax1.set_xlabel(r"$x\textnormal{-position}$")
+ax1.set_ylabel(r"$y\textnormal{-position}$")
+ax1.set_zlabel(r"$z\textnormal{-position}$")
 
+ax1.set_xlim((0, 7))
+ax1.set_ylim((0, 7))
+ax1.set_zlim((0, 7))
+
+err_marker = ax1.scatter([], [], marker=r'$\leftarrow$', color='k')
 for agent_id, agent in enumerate(agents): # Draw points
-    ax1.scatter(p_hist[agent_id][0, -1], p_hist[agent_id][1, -1], p_hist[agent_id][2, -1], marker='*', c='c', label="After", s=100)
+    # ax1.scatter(p_hist[agent_id][0, -1], p_hist[agent_id][1, -1], p_hist[agent_id][2, -1], marker='*', c='c', label="After", s=100)
     # ax1.scatter(p_est[agent_id][0], p_est[agent_id][1], p_est[agent_id][2], marker='*', c='m', label="After", s=100)
-    ax1.scatter(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2], facecolors='none', edgecolors='orangered', label="Before", s=100)
-    ax1.scatter(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], marker='x', c='g', label="True", s=100)
-    #TODO: Fix labels on plot
-    # ax1.text(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], '%s' % (str(agent_id)))
+    est_plot = ax1.scatter(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2], facecolors='none', edgecolors='orangered', label="Estimated State", s=60, zorder=(num_faulty + 2*agent_id))
+    true_plot = ax1.scatter(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], marker='x', c='yellowgreen', label="True State", s=30, zorder=(num_faulty + 2*agent_id + 1))
+
+arrow_prop_dict = dict(mutation_scale=4, arrowstyle='-|>', color='k', shrinkA=0, shrinkB=0)
+for _, agents_id in enumerate(faulty_id):
+    arrow_temp = Arrow3D([p_hat[agents_id][0,0], p_true[agents_id][0,0]], [p_hat[agents_id][1,0], p_true[agents_id][1,0]], [p_hat[agents_id][2,0], p_true[agents_id][2,0]], **arrow_prop_dict, zorder=(agents_id))
+    ax1.add_artist(arrow_temp)
 
 for i, edge in enumerate(edges): # Draw edges
-    p1 = p_est[edge[0]]
-    p2 = p_est[edge[1]]
+    p1 = p_true[edge[0]]
+    p2 = p_true[edge[1]]
     x = [p1[0], p2[0]]
     y = [p1[1], p2[1]]
     z = [p1[2], p2[2]]
-    ax1.plot(x, y, z, c='k', linewidth=1, alpha=0.25)[0]
-plt.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
+    ax1.plot(x, y, z, c='k', linewidth=1, alpha=0.05, zorder=(num_faulty + num_agents + i))[0]
+# plt.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
+
+
+ax1.set_aspect('equal')
+plt.legend([est_plot, true_plot, err_marker], [r"$\textnormal{Estimated State}$", r"$\textnormal{True State}$", r"$\textnormal{True Error}$"],
+           fancybox=True, loc='upper left', bbox_to_anchor=(-0.22, 1.0), ncols=3, fontsize=12)
 plt.grid(True)
+
+
+dt_string = datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+fname_poses = "fig/3D-NoisyComplex/positions-" + dt_string + ".svg"
+# plt.savefig(fname_poses, dpi=500, bbox_inches='tight')
 
 
 
@@ -439,46 +502,48 @@ for agent_id, agent in enumerate(agents):
     lines[agent_id] = ax_err.plot(total_iterations, x_norm_history[agent_id], c=plt_color, label=label_str)[0]
 
 # ax_err.set_title(r'Error Vector Convergence ( $\rho = {}$ )'.format(rho))
-ax_err.set_xlabel(r'ADMM Iterations')
+ax_err.set_xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
 ax_err.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \| $')
 ax_err.set_ylim((0, 1.25))
 ax_err.set_xlim((0, (n_iter - 1)))
 ax_err.set_xticks(ticks=np.arange(0, n_iter, n_admm))
 ax_err.set_yticks(ticks=np.arange(0, 1.25, 0.25))
-ax_err.legend([lines[1], lines[faulty_id[0]]], [r'$i \in$ Nominal Agents', r'$i \in$ Faulty Agents'])
+ax_err.legend([lines[1], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'])
 ax_err.grid(True)
 
-dt_string = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 fname_err = "fig/3D-NoisyComplex/err_conv_" + dt_string + ".svg"
-plt.savefig(fname_err, dpi=500)
+# plt.savefig(fname_err, dpi=500)
 
 
 
 ###     Plotting            - Animation
 
 # Start figure
-fig2 = plt.figure(dpi=500)
-ax2 = fig2.add_subplot(projection='3d')
-ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
-ax2.set_xlabel(r"$x$-position")
-ax2.set_ylabel(r"$y$-position")
-ax2.set_zlabel(r"$z$-position")
+fig2 = plt.figure(dpi=500, figsize=(16,9))
+ax2_1 = fig2.add_subplot(1, 2, 1, projection='3d')
+ax2_2 = fig2.add_subplot(1, 2, 2)
+# ax2.set_title(r"Swarm Position ( $\rho = {}$ )".format(rho))
+ax2_1.set_title(r"$\textnormal{Swarm States}$", fontsize=18)
+ax2_1.set_xlabel(r"$x\textnormal{-position}$", fontsize=16)
+ax2_1.set_ylabel(r"$y\textnormal{-position}$", fontsize=16)
+ax2_1.set_zlabel(r"$z\textnormal{-position}$", fontsize=16)
 scat_pos_est = [None] * num_agents # Position estimate during reconstruction
 scat_pos_hat = [None] * num_agents # Initial position estimate
 scat_pos_true = [None] * num_agents # True positions
 line_pos_est = [None] * len(edges) # Inter-agent communication
-ax2.set_xlim((0, 7))
-ax2.set_ylim((0, 7))
-ax2.set_zlim((0, 7))
+ax2_1.set_xlim((0, 7))
+ax2_1.set_ylim((0, 7))
+ax2_1.set_zlim((0, 7))
 
 # Draw each agent's original estimated, current estimated, and true positions
 for agent_id, _ in enumerate(agents):
-    scat_pos_est[agent_id] = ax2.plot(p_hist[agent_id][0, 0], p_hist[agent_id][1, 0], p_hist[agent_id][2, 0], 
+    scat_pos_hat[agent_id] = ax2_1.plot(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2], 
+                                        marker='o', markerfacecolor='none', c='orangered', linestyle='None', 
+                                        label="Before", markersize=15)[0]
+    scat_pos_true[agent_id] = ax2_1.plot(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], 
+                                        marker='x', c='yellowgreen', linestyle='None', label="True", markersize=8)[0]
+    scat_pos_est[agent_id] = ax2_1.plot(p_hist[agent_id][0, 0], p_hist[agent_id][1, 0], p_hist[agent_id][2, 0], 
                                         marker='*', c='c', linestyle='None', label="After", markersize=10)[0]
-    scat_pos_hat[agent_id] = ax2.plot(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2], 
-                                        marker='o', markerfacecolor='none', c='orangered', linestyle='None', label="Before", markersize=10)[0]
-    scat_pos_true[agent_id] = ax2.plot(p_true[agent_id][0], p_true[agent_id][1], p_true[agent_id][2], 
-                                        marker='x', c='g', linestyle='None', label="True", markersize=10)[0]
     # ax2.text(p_hat[agent_id][0], p_hat[agent_id][1], p_hat[agent_id][2],
     #         "%s" % (agent_id), size=10, zorder=1, color='k')
 
@@ -489,21 +554,50 @@ for i, edge in enumerate(edges):
     x = [p1[0], p2[0]]
     y = [p1[1], p2[1]]
     z = [p1[2], p2[2]]
-    line_pos_est[i] = ax2.plot(x, y, z, c='k', linewidth=1, alpha=0.25)[0]
-ax2.legend(["With Inter-agent Measurements", "Without Inter-agent Measurements", "True Position"], loc='best', fontsize=6, markerscale=0.4)
-ax2.grid(True)
+    line_pos_est[i] = ax2_1.plot(x, y, z, c='k', linewidth=1, alpha=0.05)[0]
+ax2_1.set_aspect('equal')
+ax2_1.legend([r"$\textnormal{Estimated State}$", r"$\textnormal{True State}$", r"$\textnormal{Reconstructed State}$"],
+           fancybox=True, loc='upper left', bbox_to_anchor=(-0.35, 0.6), ncols=1, fontsize=16)
+ax2_1.grid(True)
+
+# Error Convergence Plot Animation
+ax2_2.set_title(r"$\textnormal{Error Convergence}$", fontsize=18)
+err_lines = [None] * num_agents
+for agent_id, agent in enumerate(agents):
+    plt_color = 'slategray'
+    if agent_id in faulty_id:
+        plt_color = 'orangered'
+    err_lines[agent_id] = ax2_2.plot(total_iterations[0], x_norm_history[agent_id][0], c=plt_color)[0]
+
+ax2_2.set_xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
+ax2_2.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \|_2 $', fontsize=16)
+ax2_2.set_ylim((0, 1.25))
+ax2_2.set_xlim((0, (n_iter - 1)))
+ax2_2.set_xticks(ticks=np.arange(0, (n_iter-1), n_admm))
+ax2_2.set_yticks(ticks=np.arange(0, 1.25, 0.25))
+ax2_2.legend([lines[1], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'], fontsize=14)
+ax2_2.grid(True)
 
 # Update function
 def update_pos_plot(frame):
+    # Dont reanimate
+    if frame >= final_iter:
+        return
+    
     updated_ax = []
     # Draw each agent's original estimated, current estimated, and true positions
+    # Also Draw error convergence plots
     for agent_id, _ in enumerate(agents):
+        # Positions 
         new_pos = (float(p_hist[agent_id][0, frame]), float(p_hist[agent_id][1, frame]), float(p_hist[agent_id][2, frame]))
-
         scat_pos_est[agent_id].set_data([new_pos[0]], [new_pos[1]])
         scat_pos_est[agent_id].set_3d_properties([new_pos[2]])
-
         updated_ax.append(scat_pos_est[agent_id])
+        
+        # Error
+        err_lines[agent_id].set_data(total_iterations[0:frame], x_norm_history[agent_id][0:frame])
+        updated_ax.append(err_lines[agent_id])
+        
     
     # Draw line for each edge of network
     for i, edge in enumerate(edges):
@@ -522,8 +616,8 @@ def update_pos_plot(frame):
     
 # Call update function
 pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
-fname = "fig/3D-NoisyComplex/pos3D_ani_" + dt_string + ".gif"
-pos_ani.save(filename=fname, writer="pillow")
+fname = "fig/3D-NoisyComplex/combined_ani-" + dt_string + ".mp4"
+pos_ani.save(filename=fname)#, writer="pillow")
 
 
 ###     Plotting            - Residuals and Threshold
