@@ -198,7 +198,7 @@ y = measurements(p_true, x_star)                                            # CO
 
 
 ###      Initializations    - Optimization Parameters
-rho = 0.5
+rho = 1.0
 total_iterations = np.arange((n_iter))
 for agent_id, agent in enumerate(agents):
     num_edges       = len(agent.get_edge_indices())
@@ -509,7 +509,7 @@ plt.xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
 plt.ylabel(r'$ \| \mathbf{x}^* [i] + \hat{\mathbf{x}}[i] \| $')
 plt.ylim((0, 1.5))
 plt.xlim((0, (n_iter - 1)))
-plt.xticks(ticks=np.arange(0, n_iter, n_admm))
+plt.xticks(ticks=np.arange(0, n_iter, 5*n_admm))
 plt.yticks(ticks=np.arange(0, 1.5, 0.25))
 # plt.legend([lines[0], lines[faulty_ids[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'])
 plt.grid(True)
