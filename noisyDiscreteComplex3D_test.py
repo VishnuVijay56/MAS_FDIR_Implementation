@@ -427,8 +427,10 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
             # Summation for d() constraint
             for nbr_id in agent.get_neighbors():
                 constr_d = agent.x_bar - agent.w_cp[nbr_id]
+                # constr_d = agents[nbr_id].x_bar - agents[nbr_id].w_cp[agent_id]
                 objective += ((rho/2)*cp.power(cp.norm(constr_d), 2)
                               + agent.mu[nbr_id].T @ (constr_d))
+                            # + agents[nbr_id].mu[agent_id].T @ (constr_d))
                 
             prob2 = cp.Problem(cp.Minimize(objective), [])
             try:
@@ -442,6 +444,7 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=False):
 
             for _, nbr_id in enumerate(agent.get_neighbors()):
                 agent.w[nbr_id] = deepcopy(np.array(agent.w_cp[nbr_id].value).reshape((-1, 1)))
+                # agents[nbr_id].w[agent_id] = deepcopy(np.array(agents[nbr_id].w_cp[agent_id].value).reshape((-1, 1)))
 
 
         ##      Multipliers         - Update Lagrangian Multipliers of Minimization Problem

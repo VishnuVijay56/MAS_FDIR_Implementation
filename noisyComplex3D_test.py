@@ -37,22 +37,22 @@ from iam_models import distance
 ###     Initializations     - Scalars
 dim             =   3   # 2 or 3
 num_agents      =   20
-num_faulty      =   6   # must be << num_agents for sparse error assumption
-n_scp           =   12  # Number of SCP iterations
-n_admm          =   10  # Number of ADMM iterations
+num_faulty      =   7   # must be << num_agents for sparse error assumption
+n_scp           =   1  # Number of SCP iterations
+n_admm          =   1  # Number of ADMM iterations
 n_iter          =   n_admm * n_scp
 show_prob1      =   False
 show_prob2      =   False
 use_threshold   =   False
-rho             =   1.25
-iam_noise       =   0.05
+rho             =   0.25
+iam_noise       =   0.02
 pos_noise       =   0.02
-warm_start      =   False
+warm_start      =   True
 lam_lim         =   1
 mu_lim          =   1
 
 # Show
-show_plots = False
+show_plots = True
 
 ###     Initializations     - Agents
 # 20 agents making up a complex 3d configuration
@@ -82,14 +82,19 @@ agents[19]  =   Agent(agent_id = 19, init_position = np.array([[4.7, 2.4, 5.4]])
 # NOTE: may not work for some random cases
 # random case -> np.random.randint(low=0, high=num_agents, size=4)
 # tac paper case -> [0, 5, 7, 9, 10, 13]
+# 7 faulty -> [0, 5, 7, 9, 10, 13, 17]
+# 8 faulty -> [0, 1, 5, 7, 9, 10, 13, 17]
+
 faulty_id = [0, 5, 7, 9, 10, 13]
 err_scaling = 1
-fault_vec   =   [np.array([[0.275, 0.447, 0.130]]).T,
-                 np.array([[-0.849, 0.170, 0.888]]).T,
-                 np.array([[0.761, -0.408, 0.438]]).T,
-                 np.array([[-0.640, 0.260, -0.941]]).T,
-                 np.array([[0.879, 0.425, -0.710]]).T,
-                 np.array([[-0.534, -0.543, -0.588]]).T]
+fault_vec   =   [np.array([[0.275, 0.447, 0.130]]).T, # 0
+                #  np.array([[-0.541, 0.123, 0.492]]).T, # 1
+                 np.array([[-0.849, 0.170, 0.888]]).T, # 5
+                 np.array([[0.761, -0.408, 0.438]]).T, # 7
+                 np.array([[-0.640, 0.260, -0.941]]).T, # 9
+                 np.array([[0.879, 0.425, -0.710]]).T, # 10
+                 np.array([[-0.534, -0.543, -0.588]]).T] # 13
+                 #np.array([[0.105, -0.389, -0.512]]).T] #17
 for index, agent_id in enumerate(faulty_id):
     # fault_vec.append( np.random.uniform(low=-err_scaling, high=err_scaling, size=(dim, 1)) )
     agents[agent_id].faulty = True
@@ -223,12 +228,24 @@ start_time = time()
 solver_err = False
 
 ###     Looping             - SCP Outer Loop
+
+def pos_noise_fn(scale):
+    this_noise = np.random.uniform(low=-scale, high=scale, size=(dim, 1))
+    # this_noise = np.random.normal(scale=scale, size=(dim, 1))
+    return this_noise
+
+def range_noise_fn(scale):
+    this_noise = np.random.uniform(low=-scale, high=scale)
+    # this_noise = np.random.normal(scale=scale)
+    return this_noise
+    
+
 print("\nStarting Loop")
 for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
     # Noise in Position Estimate
     p_hat_noise = deepcopy(p_hat)
     for i, _ in enumerate(p_hat_noise):
-        p_hat_noise[i] = p_hat[i] + np.random.uniform(low=-pos_noise, high=pos_noise, size=(dim, 1))
+        p_hat_noise[i] = p_hat[i] + pos_noise_fn(pos_noise)
 
     new_measurement = measurements(p_hat_noise, x_star)
     z       =   [(y[i] - meas) for i, meas in enumerate(new_measurement)]
@@ -242,7 +259,7 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
     for inner_i in tqdm(range(n_admm), desc="ADMM Loop", leave=False):
 
         ##      Noise               - Add noise to interagent measurements (and therefore z)
-        z_noise = [(z[i] + np.random.uniform(low=-iam_noise, high=iam_noise)) for i, _ in enumerate(z)]
+        z_noise = [(z[i] + range_noise_fn(iam_noise)) for i, _ in enumerate(z)]
 
 
         ##      Minimization        - Primal Variable 1
@@ -329,9 +346,11 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
             
             # Summation for d() constraint
             for nbr_id in agent.get_neighbors():
-                constr_d = agent.x_bar - agent.w_cp[nbr_id]
+                # constr_d = agent.x_bar - agent.w_cp[nbr_id]
+                constr_d = agents[nbr_id].x_bar - agents[nbr_id].w_cp[agent_id]
                 objective += ((rho/2)*cp.power(cp.norm(constr_d), 2)
-                              + agent.mu[nbr_id].T @ (constr_d))
+                            #   + agent.mu[nbr_id].T @ (constr_d))
+                            + agents[nbr_id].mu[agent_id].T @ (constr_d))
                 
             prob2 = cp.Problem(cp.Minimize(objective), [])
             
@@ -349,7 +368,8 @@ for outer_i in tqdm(range(n_scp), desc="SCP Loop", leave=True):
                 print("\nERROR Problem 2: Optimization problem not solved @ (%d, %d, %d)" % (inner_i, outer_i, agent_id))
 
             for _, nbr_id in enumerate(agent.get_neighbors()):
-                agent.w[nbr_id] = deepcopy(np.array(agent.w_cp[nbr_id].value).reshape((-1, 1)))
+                # agent.w[nbr_id] = deepcopy(np.array(agent.w_cp[nbr_id].value).reshape((-1, 1)))
+                agents[nbr_id].w[agent_id] = deepcopy(np.array(agents[nbr_id].w_cp[agent_id].value).reshape((-1, 1)))
 
         ##      Check               - Solver Error
         if solver_err:
@@ -476,12 +496,12 @@ for i, edge in enumerate(edges): # Draw edges
 ax1.set_aspect('equal')
 plt.legend([est_plot, true_plot, err_marker], [r"$\textnormal{Estimated State}$", r"$\textnormal{True State}$", r"$\textnormal{True Error}$"],
            fancybox=True, loc='upper left', bbox_to_anchor=(-0.22, 1.0), ncols=3, fontsize=12)
-plt.grid(True)
+plt.grid(True, alpha=0.1)
 
 
 dt_string = datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-fname_poses = "fig/3D-NoisyComplex/positions-" + dt_string + ".svg"
-# plt.savefig(fname_poses, dpi=500, bbox_inches='tight')
+fname_poses = "fig/3D-NoisyComplex/positions-" + dt_string + ".pdf"
+plt.savefig(fname_poses, dpi=500, bbox_inches='tight')
 
 
 
@@ -508,11 +528,11 @@ ax_err.set_ylim((0, 1.25))
 ax_err.set_xlim((0, (n_iter - 1)))
 ax_err.set_xticks(ticks=np.arange(0, n_iter, n_admm))
 ax_err.set_yticks(ticks=np.arange(0, 1.25, 0.25))
-ax_err.legend([lines[1], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'])
+ax_err.legend([lines[2], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'])
 ax_err.grid(True)
 
 fname_err = "fig/3D-NoisyComplex/err_conv_" + dt_string + ".svg"
-# plt.savefig(fname_err, dpi=500)
+plt.savefig(fname_err, dpi=500)
 
 
 
@@ -560,105 +580,105 @@ ax2_1.legend([r"$\textnormal{Estimated State}$", r"$\textnormal{True State}$", r
            fancybox=True, loc='upper left', bbox_to_anchor=(-0.35, 0.6), ncols=1, fontsize=16)
 ax2_1.grid(True)
 
-# Error Convergence Plot Animation
-ax2_2.set_title(r"$\textnormal{Error Convergence}$", fontsize=18)
-err_lines = [None] * num_agents
-for agent_id, agent in enumerate(agents):
-    plt_color = 'slategray'
-    if agent_id in faulty_id:
-        plt_color = 'orangered'
-    err_lines[agent_id] = ax2_2.plot(total_iterations[0], x_norm_history[agent_id][0], c=plt_color)[0]
+# # Error Convergence Plot Animation
+# ax2_2.set_title(r"$\textnormal{Error Convergence}$", fontsize=18)
+# err_lines = [None] * num_agents
+# for agent_id, agent in enumerate(agents):
+#     plt_color = 'slategray'
+#     if agent_id in faulty_id:
+#         plt_color = 'orangered'
+#     err_lines[agent_id] = ax2_2.plot(total_iterations[0], x_norm_history[agent_id][0], c=plt_color)[0]
 
-ax2_2.set_xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
-ax2_2.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \|_2 $', fontsize=16)
-ax2_2.set_ylim((0, 1.25))
-ax2_2.set_xlim((0, (n_iter - 1)))
-ax2_2.set_xticks(ticks=np.arange(0, (n_iter-1), n_admm))
-ax2_2.set_yticks(ticks=np.arange(0, 1.25, 0.25))
-ax2_2.legend([lines[1], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'], fontsize=14)
-ax2_2.grid(True)
+# ax2_2.set_xlabel(r'\textnormal{ADMM Iterations}', fontsize=16)
+# ax2_2.set_ylabel(r'$ \| \mathbf{x}[i] - ( \mathbf{x}^* [i] + \hat{\mathbf{x}}[i]) \|_2 $', fontsize=16)
+# ax2_2.set_ylim((0, 1.25))
+# ax2_2.set_xlim((0, (n_iter - 1)))
+# ax2_2.set_xticks(ticks=np.arange(0, (n_iter-1), n_admm))
+# ax2_2.set_yticks(ticks=np.arange(0, 1.25, 0.25))
+# ax2_2.legend([lines[2], lines[faulty_id[0]]], [r'$i \in \textnormal{Nominal Agents}$', r'$i \in \textnormal{Faulty Agents}$'], fontsize=14)
+# ax2_2.grid(True)
 
-# Update function
-def update_pos_plot(frame):
-    # Dont reanimate
-    if frame >= final_iter:
-        return
+# # Update function
+# def update_pos_plot(frame):
+#     # Dont reanimate
+#     if frame >= final_iter:
+#         return
     
-    updated_ax = []
-    # Draw each agent's original estimated, current estimated, and true positions
-    # Also Draw error convergence plots
-    for agent_id, _ in enumerate(agents):
-        # Positions 
-        new_pos = (float(p_hist[agent_id][0, frame]), float(p_hist[agent_id][1, frame]), float(p_hist[agent_id][2, frame]))
-        scat_pos_est[agent_id].set_data([new_pos[0]], [new_pos[1]])
-        scat_pos_est[agent_id].set_3d_properties([new_pos[2]])
-        updated_ax.append(scat_pos_est[agent_id])
+#     updated_ax = []
+#     # Draw each agent's original estimated, current estimated, and true positions
+#     # Also Draw error convergence plots
+#     for agent_id, _ in enumerate(agents):
+#         # Positions 
+#         new_pos = (float(p_hist[agent_id][0, frame]), float(p_hist[agent_id][1, frame]), float(p_hist[agent_id][2, frame]))
+#         scat_pos_est[agent_id].set_data([new_pos[0]], [new_pos[1]])
+#         scat_pos_est[agent_id].set_3d_properties([new_pos[2]])
+#         updated_ax.append(scat_pos_est[agent_id])
         
-        # Error
-        err_lines[agent_id].set_data(total_iterations[0:frame], x_norm_history[agent_id][0:frame])
-        updated_ax.append(err_lines[agent_id])
+#         # Error
+#         err_lines[agent_id].set_data(total_iterations[0:frame], x_norm_history[agent_id][0:frame])
+#         updated_ax.append(err_lines[agent_id])
         
     
-    # Draw line for each edge of network
-    for i, edge in enumerate(edges):
-        p1 = p_hist[edge[0]][:, frame]
-        p2 = p_hist[edge[1]][:, frame]
-        x = [p1[0], p2[0]]
-        y = [p1[1], p2[1]]
-        z = [p1[2], p2[2]]
+#     # Draw line for each edge of network
+#     for i, edge in enumerate(edges):
+#         p1 = p_hist[edge[0]][:, frame]
+#         p2 = p_hist[edge[1]][:, frame]
+#         x = [p1[0], p2[0]]
+#         y = [p1[1], p2[1]]
+#         z = [p1[2], p2[2]]
 
-        line_pos_est[i].set_data(x, y)
-        line_pos_est[i].set_3d_properties(z)
+#         line_pos_est[i].set_data(x, y)
+#         line_pos_est[i].set_3d_properties(z)
 
-        updated_ax.append(line_pos_est[i])
+#         updated_ax.append(line_pos_est[i])
     
-    return updated_ax
+#     return updated_ax
     
-# Call update function
-pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
-fname = "fig/3D-NoisyComplex/combined_ani-" + dt_string + ".mp4"
-pos_ani.save(filename=fname)#, writer="pillow")
+# # Call update function
+# pos_ani = animation.FuncAnimation(fig=fig2, func=update_pos_plot, frames=n_iter, interval=100, blit=False, repeat=True)
+# fname = "fig/3D-NoisyComplex/combined_ani-" + dt_string + ".mp4"
+# # pos_ani.save(filename=fname)#, writer="pillow")
 
 
 ###     Plotting            - Residuals and Threshold
 
-# Start figure
-fig2, ax2 = plt.subplots()
-ax2.set_title("Residual monitor")
-ax2.set_xlabel("Iteration")
-ax2.set_ylabel("Residual")
+# # Start figure
+# fig2, ax2 = plt.subplots()
+# ax2.set_title("Residual monitor")
+# ax2.set_xlabel("Iteration")
+# ax2.set_ylabel("Residual")
 
-# Plot residuals of each agent
-for id, this_res_hist in enumerate(residuals):
-    ax2.plot(np.arange(n_iter), this_res_hist, label=f"Agent {id}")
-ax2.plot(range(n_iter), [1/rho]*n_iter, label=f"Threshold")
-ax2.legend(loc='best')
-ax2.set_ylim(bottom=0, top=10)
-ax2.grid(True)
+# # Plot residuals of each agent
+# for id, this_res_hist in enumerate(residuals):
+#     ax2.plot(np.arange(n_iter), this_res_hist, label=f"Agent {id}")
+# ax2.plot(range(n_iter), [1/rho]*n_iter, label=f"Threshold")
+# ax2.legend(loc='best')
+# ax2.set_ylim(bottom=0, top=10)
+# ax2.grid(True)
 
 
 ###     Plotting            - Dual Variables: Lambda
-fig_lam, ax_lam = plt.subplots()
-ax_lam.set_title(f"Lambda for agent {faulty_id}")
-ax_lam.set_xlabel("Iteration")
-ax_lam.set_ylabel("Lambda")
-for id, _ in enumerate(agents):
-    for i in range(lam_norm_history[id].shape[0]):
-        ax_lam.plot(np.arange(n_iter), lam_norm_history[id][i, :].flatten(), label=f"Agent {id}, Edge {i}")
-# ax_lam.legend(loc='best')
-ax_lam.grid(True)
+# fig_lam, ax_lam = plt.subplots()
+# ax_lam.set_title(f"Lambda for agent {faulty_id}")
+# ax_lam.set_xlabel("Iteration")
+# ax_lam.set_ylabel("Lambda")
+# for id, _ in enumerate(agents):
+#     for i in range(lam_norm_history[id].shape[0]):
+#         ax_lam.plot(np.arange(n_iter), lam_norm_history[id][i, :].flatten(), label=f"Agent {id}, Edge {i}")
+# # ax_lam.legend(loc='best')
+# ax_lam.grid(True)
 
 
 ###     Plotting            - Dual Variables: Mu
-fig_mu, ax_mu = plt.subplots()
-ax_mu.set_title(f"Mu for agent {faulty_id}")
-ax_mu.set_xlabel("Iteration")
-ax_mu.set_ylabel("Mu")
-for id, _ in enumerate(agents):
-    for i in range(mu_norm_history[id].shape[0]):
-        ax_mu.plot(np.arange(n_iter), mu_norm_history[id][i, :].flatten(), label=f"Agent {id}, Neighbor {i}")
-# ax_mu.legend(loc='best')
-ax_mu.grid(True)
+# fig_mu, ax_mu = plt.subplots()
+# ax_mu.set_title(f"Mu for agent {faulty_id}")
+# ax_mu.set_xlabel("Iteration")
+# ax_mu.set_ylabel("Mu")
+# for id, _ in enumerate(agents):
+#     for i in range(mu_norm_history[id].shape[0]):
+#         ax_mu.plot(np.arange(n_iter), mu_norm_history[id][i, :].flatten(), label=f"Agent {id}, Neighbor {i}")
+# # ax_mu.legend(loc='best')
+# ax_mu.grid(True)
 
 
 ###     Plotting            - Show Plots

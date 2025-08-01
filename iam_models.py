@@ -5,3 +5,6 @@ def distance(pos1, pos2):
 
 def displacement(pos1, pos2):
     return (pos2 - pos1)
+
+def bearing(pos1, pos2):
+    return (pos2 - pos1) / distance(pos1, pos2)

@@ -59,9 +59,11 @@ agents[4]   =   Agent(agent_id= 4,
 agents[5]   =   Agent(agent_id= 5,
                       init_position= np.array([[d/4, d*np.sqrt(3)/4]]).T)
 
-# Add error vector
+# Add random error vector
 faulty_id = 2*np.random.randint(0, high=num_agents/2) + 1
 fault_vec = 0.5*np.random.rand(dim, 1)
+
+# Add error vector to bottom right cluster
 agents[0].faulty = True
 agents[0].error_vector = np.array([[0], [1]]) # shift up
 agents[4].faulty = True

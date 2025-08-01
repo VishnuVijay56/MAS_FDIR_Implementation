@@ -6,3 +6,5 @@
 *.npy
 *.npz
 *.mp4
+/fig
+/final_fig
